@@ -1,0 +1,179 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+
+# See instructions at
+# https://github.com/GoogleCloudPlatform/hpc-toolkit/tree/main/examples#image-builderyaml-
+
+blueprint_name: image-builder-v6
+
+vars:
+  project_id: ## Set GCP Project ID Here ##
+  deployment_name: image-builder-v6-001
+  region: us-central1
+  zone: us-central1-c
+
+  # Image info
+  input_image_project: rocky-linux-cloud
+  input_image_name: rocky-linux-8-optimized-gcp-v20241009
+  output_image_family: hpc-custom-image
+  output_image_name: hpc-custom-image-v20241023
+  
+  # Startup scripts (for image building with Packer)
+  scripts_dir: /home/user/cluster-toolkit/.image-building-test/scripts
+  placed_files_dir: /home/user/cluster-toolkit/.image-building-test/placed_files
+  option_dir: /home/user/cluster-toolkit/.image-building-test/options
+  vm_tmp_dir: /tmp/hpc-image-builder
+# Documentation for each of the modules used below can be found at
+# https://github.com/GoogleCloudPlatform/hpc-toolkit/blob/main/modules/README.md
+
+deployment_groups:
+- group: primary
+  modules:
+  - id: network
+    source: modules/network/vpc
+
+  - id: image_build_script
+    source: modules/scripts/startup-script
+    settings:
+      runners:
+      ################
+      # Placed files #
+      ################
+      - type: data
+        destination: /etc/image_name_base
+        content: $(vars.input_image_name)
+      
+      - type: data
+        destination: /etc/image_name_hpc
+        content: $(vars.output_image_name)
+
+      - type: data
+        destination: /etc/security/limits.d/98-google-hpc-image.conf
+        source: $(vars.placed_files_dir)/98-google-hpc-image.conf
+      
+      - type: data
+        destination: /etc/NetworkManager/dispatcher.d/30-disable-gvnic-coalesce
+        source: $(vars.placed_files_dir)/30-disable-gvnic-coalesce
+
+      - type: data
+        destination: /usr/lib/tuned/google-hpc-compute/tuned.conf
+        source: $(vars.placed_files_dir)/google-hpc-tuned.conf
+
+      - type: data
+        destination: /usr/lib/tuned/google-hpc-compute-throughput/tuned.conf
+        source: $(vars.placed_files_dir)/google-hpc-throughput-tuned.conf
+
+      ###################
+      # Bootstrap utils #
+      ###################
+      
+      - type: data
+        destination: $(vars.vm_tmp_dir)/utils.sh
+        source: $(vars.scripts_dir)/utils.sh
+
+      ########################
+      # Installation Scripts #
+      ########################
+  
+      - type: data
+        destination: $(vars.vm_tmp_dir)/install_packages.sh
+        source: $(vars.scripts_dir)/install_packages.sh
+      - type: data
+        destination: $(vars.vm_tmp_dir)/google_mpi_tuning.sh
+        source: $(vars.scripts_dir)/google_mpi_tuning.sh
+      - type: data
+        destination: $(vars.vm_tmp_dir)/google_install_intelmpi.sh
+        source: $(vars.scripts_dir)/google_install_intelmpi.sh
+     
+      ##################
+      # Tuning Options #
+      ##################  
+      - type: data
+        destination: $(vars.vm_tmp_dir)/options/tune_firewall.sh
+        source: $(vars.option_dir)/tune_firewall.sh
+      - type: data
+        destination: $(vars.vm_tmp_dir)/options/tune_selinux.sh
+        source: $(vars.option_dir)/tune_selinux.sh
+      - type: data
+        destination: $(vars.vm_tmp_dir)/options/tune_tcpmem.sh
+        source: $(vars.option_dir)/tune_tcpmem.sh
+      - type: data
+        destination: $(vars.vm_tmp_dir)/options/tune_ulimits.sh
+        source: $(vars.option_dir)/tune_ulimits.sh
+      - type: data
+        destination: $(vars.vm_tmp_dir)/options/tune_hpc_throughput.sh
+        source: $(vars.option_dir)/tune_hpc_throughput.sh
+      ########
+      # Main #
+      ########
+      - type: shell
+        destination: $(vars.vm_tmp_dir)/main.sh
+        content: |         
+          #!/bin/bash
+          set -eEx
+
+          #TODO add the rest
+          source $(vars.vm_tmp_dir)/utils.sh
+          source $(vars.vm_tmp_dir)/install_packages.sh
+          #source $(vars.vm_tmp_dir)/google_install_intelmpi.sh
+          source $(vars.vm_tmp_dir)/options/tune_firewall.sh
+          source $(vars.vm_tmp_dir)/options/tune_selinux.sh
+          source $(vars.vm_tmp_dir)/options/tune_tcpmem.sh
+          source $(vars.vm_tmp_dir)/options/tune_ulimits.sh
+          source $(vars.vm_tmp_dir)/options/tune_hpc_throughput.sh
+
+          setup_instance
+          wait_for_metadata_server
+          if [[ ! -f ~/.reboot ]]; then
+            touch ~/.reboot
+            sync
+            install_packages
+            tune_tcpmem
+            tune_limits
+            tune_hpcprofile
+            tune_firewall
+            tune_selinux
+            systemctl reboot
+            echo "Rebooting!" | tee /etc/hello.txt
+          else
+            postinstall
+            cleanup
+            echo "Hello Again" | tee /etc/hello-reboot.txt
+          fi
+        
+
+
+- group: packer
+  modules:
+  - id: custom-image
+    source: modules/packer/custom-image
+    kind: packer
+    use:
+    - network
+    - image_build_script
+    settings:
+      source_image_project_id: [$(vars.input_image_project)]
+      # see latest in https://github.com/GoogleCloudPlatform/slurm-gcp/blob/master/docs/images.md#published-image-family
+      source_image: $(vars.input_image_name)
+      # You can find size of source image by using following command
+      # gcloud compute images describe-from-family <source_image_family> --project schedmd-slurm-public
+      disk_size: 200
+      image_family: $(vars.output_image_family)
+      image_name: $(vars.output_image_name)
+      state_timeout: 20m
+      metadata: 
+        image-name: $(vars.output_image_name)
+        base-image-name: $(vars.input_image_name)
