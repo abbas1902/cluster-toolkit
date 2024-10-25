@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-readonly GRUB_DEFAULT="/etc/default/grub"
+GRUB_DEFAULT="/etc/default/grub"
 
 update_grub_default() {
 	local key=$1

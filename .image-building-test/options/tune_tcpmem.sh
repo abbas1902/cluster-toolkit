@@ -14,8 +14,8 @@
 # limitations under the License.
 
 # check active tuned profile
-readonly GRUB_DEFAULT="/etc/default/grub"
-readonly SYSCTL_CONF="/etc/sysctl.conf"
+GRUB_DEFAULT="/etc/default/grub"
+SYSCTL_CONF="/etc/sysctl.conf"
 
 get_active_profile() {
 	ACTIVE_PROFILE=$(tuned-adm active | awk {'print $4'})

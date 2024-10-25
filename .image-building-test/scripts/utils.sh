@@ -16,6 +16,7 @@
 
 readonly SYSTEMD_UNIT_ROOT=/lib/systemd/system
 readonly WORKING_DIR=/root/mpi-tuning
+MAXTIME=1
 
 readonly METADATA_URL="http://metadata.google.internal/computeMetadata/v1/instance"
 
@@ -83,12 +84,49 @@ function get_instance_metadata_value() {
   key="$1"
 
   value=$(curl --max-time $MAXTIME --retry 5 --retry-connrefused -f -H 'Metadata-Flavor:Google' "${METADATA_URL}/${key}")
+
+  TUNED_ADM_PROFILE="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${METADATA_URL}/attributes/google_mpi_tuning || true)"
+
+	INSTALL_INTELMPI="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${METADATA_URL}/attributes/google_install_intelmpi || true)"
+	
+  DISABLE_AUTOMATIC_UPDATES="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${METADATA_URL}/attributes/google_disable_automatic_updates || true)"
+
+  MULTIQUEUE_OPT="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${METADATA_URL}/attributes/multiqueue-opt|| true)"
+  
+  GVNIC="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${METADATA_URL}/attributes/enable-gvnic || true)"
+
+  echo "MPI TUNE IS $TUNED_ADM_PROFILE"
   if [[ ! ${value} ]]; then
     echo "'${key}' instance metadata entry not found"
     return
   fi
 
   echo "${value}"
+}
+
+#############################
+# Disable automatic updates #
+#############################
+
+function disable_automatic_updates() {
+	if [[ ${DISABLE_AUTOMATIC_UPDATES} == "TRUE" ]]; then
+		echo "Disable automatic updates: google_disable_automatic_updates ${DISABLE_AUTOMATIC_UPDATES}"
+		google_disable_automatic_updates ${DISABLE_AUTOMATIC_UPDATES}
+	else
+		echo "Automatic updates were not disabled through metadata."
+	fi
+}
+
+######################
+# Install intel MPI  #
+######################
+function install_intelmpi() {
+	if [[ ${INSTALL_INTELMPI} ]]; then
+		echo "Install MPI environment: google_install_intelmpi ${INSTALL_INTELMPI}"
+		google_install_intelmpi ${INSTALL_INTELMPI}
+	else
+		echo "No MPI environment configured through metadata."
+	fi
 }
 
 #################
@@ -125,7 +163,7 @@ function cleanup() {
   rm -f ~/.bash_history && history -c
 }
 
-function postinstall_gve() {
+function postinstall() {
   if [[ ${MULTIQUEUE_OPT} == "TRUE" ]]; then
     echo "Disable google_set_multiqueue."
     sed -i 's/^\(set_multiqueue\s*=\s*\).*$/\1false # superseded by google_hpc_multiqueue/' /etc/default/instance_configs.cfg
@@ -135,7 +173,7 @@ function postinstall_gve() {
     # locate the gve driver version
     local_gve_version="$(dkms status gve | awk -F'[,:/]' {'print $2'})"
     if [[ -z ${local_gve_version// } ]]; then
-      echo "DaisyFailure: Unable to locate the version of the gve DKMS module."
+      echo "Unable to locate the version of the gve DKMS module."
     fi
 
     # let dkms install gve driver
@@ -144,7 +182,7 @@ function postinstall_gve() {
     # check if the oot gve driver has been selected
     local_check1=$(grep gve /lib/modules/"$(uname -r)"/modules.dep | grep extra)
     if [[ -z ${local_check1} ]]; then
-      echo "DaisyFailure: DKMS gve driver not selected in depmod."
+      echo "DKMS gve driver not selected in depmod."
     fi
 
     # check if gve driver has the right alias
@@ -152,25 +190,13 @@ function postinstall_gve() {
     # PCI Device ID [0042] = Compute Engine Virtual Ethernet [gVNIC]
     local_check2=$(grep gve /lib/modules/"$(uname -r)"/modules.alias | grep 'v0*1AE0d0*0042')
     if [[ -z ${local_check2} ]]; then
-      echo "DaisyFailure: DKMS gve driver alias not set."
+      echo "DKMS gve driver alias not set."
     fi
   fi
 
   # check if home directory is empty
   home_check="$(ls -A /home || true)"
   if [[ ! -z "${home_check}" ]]; then
-    echo "DaisyFailure: /home directory is not empty."
+    echo "/home directory is not empty."
   fi
-}
-
-function postinstall() {
-  #Tuned by default
-  #TODO CLEAN THIS UP 
-  #Optional tunings
-  # tune_cpu_mitigation
-  # tune_hpc_profile
-  # disable firewalld and SELinux
-  postinstall_gve
-  #google_mpi_tuning --nofirewalld --noselinux
-  echo "hi"
 }

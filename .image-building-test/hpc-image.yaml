@@ -28,12 +28,13 @@ vars:
   # Image info
   input_image_project: rocky-linux-cloud
   input_image_name: rocky-linux-8-optimized-gcp-v20241009
-  output_image_family: hpc-custom-image
-  output_image_name: hpc-custom-image-v20241023
+  output_image_family: hpc-rocky-linux-8-toolkit
+  output_image_name: hpc-rocky-linux-8-toolkit-v20241106
   
   # Startup scripts (for image building with Packer)
   scripts_dir: /home/user/cluster-toolkit/.image-building-test/scripts
   placed_files_dir: /home/user/cluster-toolkit/.image-building-test/placed_files
+  services_dir: /home/user/cluster-toolkit/.image-building-test/services
   option_dir: /home/user/cluster-toolkit/.image-building-test/options
   vm_tmp_dir: /tmp/hpc-image-builder
 # Documentation for each of the modules used below can be found at
@@ -49,6 +50,16 @@ deployment_groups:
     source: modules/scripts/startup-script
     settings:
       runners:
+      #################
+      # SystemD Units #
+      #################
+      - type: data
+        destination: /lib/systemd/system/google-hpc-multiqueue.service
+        source: $(vars.services_dir)/google-hpc-multiqueue.service
+      
+      - type: data
+        destination: /usr/bin/google_hpc_multiqueue
+        source: $(vars.services_dir)/google-hpc-multiqueue.sh
       ################
       # Placed files #
       ################
@@ -97,10 +108,14 @@ deployment_groups:
       - type: data
         destination: $(vars.vm_tmp_dir)/google_install_intelmpi.sh
         source: $(vars.scripts_dir)/google_install_intelmpi.sh
+      - type: data
+        destination: $(vars.vm_tmp_dir)/google_disable_automatic_updates.sh
+        source: $(vars.scripts_dir)/google_disable_automatic_updates.sh
      
       ##################
       # Tuning Options #
       ##################  
+
       - type: data
         destination: $(vars.vm_tmp_dir)/options/tune_firewall.sh
         source: $(vars.option_dir)/tune_firewall.sh
@@ -116,9 +131,16 @@ deployment_groups:
       - type: data
         destination: $(vars.vm_tmp_dir)/options/tune_hpc_throughput.sh
         source: $(vars.option_dir)/tune_hpc_throughput.sh
+      - type: data
+        destination: $(vars.vm_tmp_dir)/options/tune_smt.sh
+        source: $(vars.option_dir)/tune_smt.sh
+      - type: data
+        destination: $(vars.vm_tmp_dir)/options/tune_interrupt_coalescing.sh
+        source: $(vars.option_dir)/tune_interrupt_coalescing.sh
       ########
       # Main #
       ########
+
       - type: shell
         destination: $(vars.vm_tmp_dir)/main.sh
         content: |         
@@ -128,27 +150,51 @@ deployment_groups:
           #TODO add the rest
           source $(vars.vm_tmp_dir)/utils.sh
           source $(vars.vm_tmp_dir)/install_packages.sh
-          #source $(vars.vm_tmp_dir)/google_install_intelmpi.sh
+          source $(vars.vm_tmp_dir)/google_install_intelmpi.sh
+          source $(vars.vm_tmp_dir)/google_disable_automatic_updates.sh
+
+          ### TUNINGS ###
           source $(vars.vm_tmp_dir)/options/tune_firewall.sh
           source $(vars.vm_tmp_dir)/options/tune_selinux.sh
           source $(vars.vm_tmp_dir)/options/tune_tcpmem.sh
           source $(vars.vm_tmp_dir)/options/tune_ulimits.sh
           source $(vars.vm_tmp_dir)/options/tune_hpc_throughput.sh
+          source $(vars.vm_tmp_dir)/options/tune_interrupt_coalescing.sh
+          source $(vars.vm_tmp_dir)/options/tune_smt.sh
 
           setup_instance
           wait_for_metadata_server
           if [[ ! -f ~/.reboot ]]; then
             touch ~/.reboot
             sync
+
+            #Install HPC packages/applications
             install_packages
+            install_intelmpi
+
+            #Add tunings
             tune_tcpmem
             tune_limits
             tune_hpcprofile
             tune_firewall
             tune_selinux
-            systemctl reboot
+            tune_ht
+            tune_interrupt_coalescing
+
+            #Disable auto updates
+            disable_automatic_updates
+
+            systemctl daemon-reload
+
             echo "Rebooting!" | tee /etc/hello.txt
+            systemctl reboot
+
           else
+            # Enable multiqueue script
+            if [ -d /run/systemd/system ]; then
+             systemctl enable google-hpc-multiqueue.service
+             systemctl start google-hpc-multiqueue.service
+            fi
             postinstall
             cleanup
             echo "Hello Again" | tee /etc/hello-reboot.txt

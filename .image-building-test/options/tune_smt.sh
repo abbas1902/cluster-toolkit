@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-readonly GRUB_DEFAULT="/etc/default/grub"
+GRUB_DEFAULT="/etc/default/grub"
 
 disable_ht_online() {
 	if [[ -f /sys/devices/system/cpu/cpu0/topology/thread_siblings_list ]]; then
