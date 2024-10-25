@@ -46,22 +46,6 @@ INTEL_MPI_PKGS=(
 	"intel-oneapi-mpi-2021.13.0.x86_64"
 )
 
-usage() {
-	cat <<EOF
-  Usage:
-    Verify installation steps: $(basename "$0") [options] --dryrun
-    Apply installation: $(basename "$0") [options]
-
-  Options:
-    -h | --help          Display help message
-    --dryrun             Do not execute commands
-    --install_dir <path> Configure the prefix directory for installations
-                         Default location is set to /opt/intel
-    --impi_2021          Install Intel(R) MPI 2021.13 (Recommended version
-                         for running MPI jobs on Google Cloud)
-EOF
-}
-
 run() {
 	if [[ "$dryrun" = 1 ]]; then
 		echo "$*"
@@ -152,12 +136,6 @@ cleanup() {
 PARSED_ARGUMENTS=$(getopt -q -n new_cmd -o h \
 	--long help,dryrun,impi_2021,install_dir: -- "$@")
 setopts
-
-if [[ "$show_usage" = 1 ]]; then
-	usage
-	exit 0
-fi
-
 check_root
 mkdir -p ${RPM_DOWNLOAD}
 if [[ ! -d ${install_dir} ]]; then
