@@ -6,7 +6,7 @@ ConditionPathExists=/.google_hpc_firstrun
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/google_hpc_firstrun
+ExecStart=/usr/bin/bash /usr/bin/google_hpc_firstrun
 TimeoutStartSec=1200
 
 [Install]

@@ -22,6 +22,10 @@
 
 set -x -e -o pipefail
 
+source /etc/hpc-image-builder/google_install_intelmpi.sh
+source /etc/hpc-image-builder/google_disable_automatic_updates.sh
+
+
 URL="http://metadata.google.internal/computeMetadata/v1/instance/attributes"
 MAXTIME=1
 FIRSTRUN="/.google_hpc_firstrun"
@@ -47,9 +51,11 @@ function get_attributes() {
 		exit $exit_code
 	fi
 
-	MPI_TUNE="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${URL}/google_mpi_tuning || true)"
 	INSTALL_INTELMPI="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${URL}/google_install_intelmpi || true)"
 	DISABLE_AUTOMATIC_UPDATES="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${URL}/google_disable_automatic_updates || true)"
+	MULTIQUEUE_OPT="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${URL}/multiqueue || true)"
+	GVNIC="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${URL}/enable-gvnic || true)"
+	TUNED_ADM_PROFILE="$(curl --max-time $MAXTIME -f -s -H Metadata-Flavor:Google ${URL}/google_mpi_tuning  || true)"
 }
 
 function disable_automatic_updates() {
@@ -70,18 +76,43 @@ function install_intelmpi() {
 	fi
 }
 
-function mpi_tuning() {
-	if [[ ${MPI_TUNE} ]]; then
-		echo "MPI tuning configuration: google_mpi_tuning ${MPI_TUNE}"
-		google_mpi_tuning ${MPI_TUNE}
-	else
-		echo "No MPI tuning configured through metadata."
+
+function set_mulitqueue() {
+	if [[ ${MULTIQUEUE_OPT} == "TRUE" ]]; then
+		echo "Disable google_set_multiqueue."
+		sed -i 's/^\(set_multiqueue\s*=\s*\).*$/\1false # superseded by google_hpc_multiqueue/' /etc/default/instance_configs.cfg
 	fi
 }
+function enable_gvnic() {
+	if [[ ${GVNIC} == "TRUE" ]]; then
+		# locate the gve driver version
+		local_gve_version="$(dkms status gve | awk -F'[,:/]' {'print $2'})"
+		if [[ -z ${local_gve_version// } ]]; then
+			echo "Unable to locate the version of the gve DKMS module."
+		fi
 
+		# let dkms install gve driver
+		dkms install -m gve -v "${local_gve_version}"
+
+		# check if the oot gve driver has been selected
+		local_check1=$(grep gve /lib/modules/"$(uname -r)"/modules.dep | grep extra)
+		if [[ -z ${local_check1} ]]; then
+			echo "DKMS gve driver not selected in depmod."
+		fi
+
+		# check if gve driver has the right alias
+		# PCI Vendor ID [1AE0] = Google, Inc.
+		# PCI Device ID [0042] = Compute Engine Virtual Ethernet [gVNIC]
+		local_check2=$(grep gve /lib/modules/"$(uname -r)"/modules.alias | grep 'v0*1AE0d0*0042')
+		if [[ -z ${local_check2} ]]; then
+			echo "DKMS gve driver alias not set."
+		fi
+	fi
+}
 rm -f ${FIRSTRUN}
 echo "Google HPC startup firstrun operation."
 get_attributes
 disable_automatic_updates
 install_intelmpi
-mpi_tuning
+set_mulitqueue
+enable_gvnic

@@ -20,7 +20,7 @@
 blueprint_name: image-builder-v6
 
 vars:
-  project_id: ## Set GCP Project ID Here ##
+  project_id:  ## Set GCP Project ID Here ##
   deployment_name: image-builder-v6-001
   region: us-central1
   zone: us-central1-c
@@ -29,14 +29,14 @@ vars:
   input_image_project: rocky-linux-cloud
   input_image_name: rocky-linux-8-optimized-gcp-v20241009
   output_image_family: hpc-rocky-linux-8-toolkit
-  output_image_name: hpc-rocky-linux-8-toolkit-v20241106
+  output_image_name: hpc-rocky-linux-8-toolkit-v20241110
   
   # Startup scripts (for image building with Packer)
   scripts_dir: /home/user/cluster-toolkit/.image-building-test/scripts
   placed_files_dir: /home/user/cluster-toolkit/.image-building-test/placed_files
   services_dir: /home/user/cluster-toolkit/.image-building-test/services
   option_dir: /home/user/cluster-toolkit/.image-building-test/options
-  vm_tmp_dir: /tmp/hpc-image-builder
+  vm_etc_dir: /etc/hpc-image-builder
 # Documentation for each of the modules used below can be found at
 # https://github.com/GoogleCloudPlatform/hpc-toolkit/blob/main/modules/README.md
 
@@ -60,6 +60,15 @@ deployment_groups:
       - type: data
         destination: /usr/bin/google_hpc_multiqueue
         source: $(vars.services_dir)/google-hpc-multiqueue.sh
+
+      - type: data
+        destination: /lib/systemd/system/google-hpc-firstrun.service
+        source: $(vars.services_dir)/google-hpc-firstrun.service
+      
+      - type: data
+        destination: /usr/bin/google_hpc_firstrun
+        source: $(vars.services_dir)/google-hpc-firstrun.sh
+
       ################
       # Placed files #
       ################
@@ -92,7 +101,7 @@ deployment_groups:
       ###################
       
       - type: data
-        destination: $(vars.vm_tmp_dir)/utils.sh
+        destination: $(vars.vm_etc_dir)/utils.sh
         source: $(vars.scripts_dir)/utils.sh
 
       ########################
@@ -100,16 +109,16 @@ deployment_groups:
       ########################
   
       - type: data
-        destination: $(vars.vm_tmp_dir)/install_packages.sh
+        destination: $(vars.vm_etc_dir)/install_packages.sh
         source: $(vars.scripts_dir)/install_packages.sh
       - type: data
-        destination: $(vars.vm_tmp_dir)/google_mpi_tuning.sh
+        destination: $(vars.vm_etc_dir)/google_mpi_tuning.sh
         source: $(vars.scripts_dir)/google_mpi_tuning.sh
       - type: data
-        destination: $(vars.vm_tmp_dir)/google_install_intelmpi.sh
+        destination: $(vars.vm_etc_dir)/google_install_intelmpi.sh
         source: $(vars.scripts_dir)/google_install_intelmpi.sh
       - type: data
-        destination: $(vars.vm_tmp_dir)/google_disable_automatic_updates.sh
+        destination: $(vars.vm_etc_dir)/google_disable_automatic_updates.sh
         source: $(vars.scripts_dir)/google_disable_automatic_updates.sh
      
       ##################
@@ -117,60 +126,56 @@ deployment_groups:
       ##################  
 
       - type: data
-        destination: $(vars.vm_tmp_dir)/options/tune_firewall.sh
+        destination: $(vars.vm_etc_dir)/options/tune_firewall.sh
         source: $(vars.option_dir)/tune_firewall.sh
       - type: data
-        destination: $(vars.vm_tmp_dir)/options/tune_selinux.sh
+        destination: $(vars.vm_etc_dir)/options/tune_selinux.sh
         source: $(vars.option_dir)/tune_selinux.sh
       - type: data
-        destination: $(vars.vm_tmp_dir)/options/tune_tcpmem.sh
+        destination: $(vars.vm_etc_dir)/options/tune_tcpmem.sh
         source: $(vars.option_dir)/tune_tcpmem.sh
       - type: data
-        destination: $(vars.vm_tmp_dir)/options/tune_ulimits.sh
+        destination: $(vars.vm_etc_dir)/options/tune_ulimits.sh
         source: $(vars.option_dir)/tune_ulimits.sh
       - type: data
-        destination: $(vars.vm_tmp_dir)/options/tune_hpc_throughput.sh
+        destination: $(vars.vm_etc_dir)/options/tune_hpc_throughput.sh
         source: $(vars.option_dir)/tune_hpc_throughput.sh
       - type: data
-        destination: $(vars.vm_tmp_dir)/options/tune_smt.sh
+        destination: $(vars.vm_etc_dir)/options/tune_smt.sh
         source: $(vars.option_dir)/tune_smt.sh
       - type: data
-        destination: $(vars.vm_tmp_dir)/options/tune_interrupt_coalescing.sh
+        destination: $(vars.vm_etc_dir)/options/tune_interrupt_coalescing.sh
         source: $(vars.option_dir)/tune_interrupt_coalescing.sh
       ########
       # Main #
       ########
 
       - type: shell
-        destination: $(vars.vm_tmp_dir)/main.sh
+        destination: $(vars.vm_etc_dir)/main.sh
         content: |         
           #!/bin/bash
           set -eEx
 
           #TODO add the rest
-          source $(vars.vm_tmp_dir)/utils.sh
-          source $(vars.vm_tmp_dir)/install_packages.sh
-          source $(vars.vm_tmp_dir)/google_install_intelmpi.sh
-          source $(vars.vm_tmp_dir)/google_disable_automatic_updates.sh
+          source $(vars.vm_etc_dir)/utils.sh
+          source $(vars.vm_etc_dir)/install_packages.sh
 
           ### TUNINGS ###
-          source $(vars.vm_tmp_dir)/options/tune_firewall.sh
-          source $(vars.vm_tmp_dir)/options/tune_selinux.sh
-          source $(vars.vm_tmp_dir)/options/tune_tcpmem.sh
-          source $(vars.vm_tmp_dir)/options/tune_ulimits.sh
-          source $(vars.vm_tmp_dir)/options/tune_hpc_throughput.sh
-          source $(vars.vm_tmp_dir)/options/tune_interrupt_coalescing.sh
-          source $(vars.vm_tmp_dir)/options/tune_smt.sh
+          source $(vars.vm_etc_dir)/options/tune_firewall.sh
+          source $(vars.vm_etc_dir)/options/tune_selinux.sh
+          source $(vars.vm_etc_dir)/options/tune_tcpmem.sh
+          source $(vars.vm_etc_dir)/options/tune_ulimits.sh
+          source $(vars.vm_etc_dir)/options/tune_hpc_throughput.sh
+          source $(vars.vm_etc_dir)/options/tune_interrupt_coalescing.sh
+          source $(vars.vm_etc_dir)/options/tune_smt.sh
 
           setup_instance
-          wait_for_metadata_server
-          if [[ ! -f ~/.reboot ]]; then
-            touch ~/.reboot
+          if [[ ! -f ~/.google_hpc_firstrun ]]; then
+            touch ~/.google_hpc_firstrun
             sync
 
             #Install HPC packages/applications
             install_packages
-            install_intelmpi
 
             #Add tunings
             tune_tcpmem
@@ -181,21 +186,18 @@ deployment_groups:
             tune_ht
             tune_interrupt_coalescing
 
-            #Disable auto updates
-            disable_automatic_updates
 
-            systemctl daemon-reload
+            #Enable SystemD services
+            if [ -d /run/systemd/system ]; then
+             systemctl enable --now google-hpc-multiqueue.service
+             systemctl start google-hpc-firstrun.service
+             systemctl daemon-reload
+            fi
 
             echo "Rebooting!" | tee /etc/hello.txt
             systemctl reboot
 
           else
-            # Enable multiqueue script
-            if [ -d /run/systemd/system ]; then
-             systemctl enable google-hpc-multiqueue.service
-             systemctl start google-hpc-multiqueue.service
-            fi
-            postinstall
             cleanup
             echo "Hello Again" | tee /etc/hello-reboot.txt
           fi
