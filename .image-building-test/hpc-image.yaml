@@ -29,13 +29,13 @@ vars:
   input_image_project: rocky-linux-cloud
   input_image_name: rocky-linux-8-optimized-gcp-v20241009
   output_image_family: hpc-rocky-linux-8-toolkit
-  output_image_name: hpc-rocky-linux-8-toolkit-v20241110
+  output_image_name: hpc-rocky-linux-8-toolkit-v20241118
   
   # Startup scripts (for image building with Packer)
-  scripts_dir: /home/user/cluster-toolkit/.image-building-test/scripts
-  placed_files_dir: /home/user/cluster-toolkit/.image-building-test/placed_files
-  services_dir: /home/user/cluster-toolkit/.image-building-test/services
-  option_dir: /home/user/cluster-toolkit/.image-building-test/options
+  scripts_dir: /home/user/cluster-toolkit/.image-building-test/scripts/
+  placed_files_dir: /home/user/cluster-toolkit/.image-building-test/placed_files/
+  services_dir: /home/user/cluster-toolkit/.image-building-test/services/
+  option_dir: /home/user/cluster-toolkit/.image-building-test/options/
   vm_etc_dir: /etc/hpc-image-builder
 # Documentation for each of the modules used below can be found at
 # https://github.com/GoogleCloudPlatform/hpc-toolkit/blob/main/modules/README.md
@@ -160,46 +160,43 @@ deployment_groups:
           source $(vars.vm_etc_dir)/utils.sh
           source $(vars.vm_etc_dir)/install_packages.sh
 
-          ### TUNINGS ###
+          ### TUNINGS ###          
+          #source $(vars.vm_etc_dir)/options/tune_interrupt_coalescing.sh
+          #source $(vars.vm_etc_dir)/options/tune_smt.sh
+          #source $(vars.vm_etc_dir)/options/tune_tcpmem.sh
           source $(vars.vm_etc_dir)/options/tune_firewall.sh
           source $(vars.vm_etc_dir)/options/tune_selinux.sh
-          source $(vars.vm_etc_dir)/options/tune_tcpmem.sh
           source $(vars.vm_etc_dir)/options/tune_ulimits.sh
           source $(vars.vm_etc_dir)/options/tune_hpc_throughput.sh
-          source $(vars.vm_etc_dir)/options/tune_interrupt_coalescing.sh
-          source $(vars.vm_etc_dir)/options/tune_smt.sh
 
           setup_instance
-          if [[ ! -f ~/.google_hpc_firstrun ]]; then
-            touch ~/.google_hpc_firstrun
+          if [[ ! -f ~/.reboot ]]; then
+            touch ~/.reboot
             sync
 
             #Install HPC packages/applications
             install_packages
 
+            systemctl reboot
+
+          else            
             #Add tunings
-            tune_tcpmem
+            #tune_tcpmem
+            #tune_ht
+            #tune_interrupt_coalescing
             tune_limits
             tune_hpcprofile
             tune_firewall
             tune_selinux
-            tune_ht
-            tune_interrupt_coalescing
-
+            
+            cleanup
 
             #Enable SystemD services
             if [ -d /run/systemd/system ]; then
              systemctl enable --now google-hpc-multiqueue.service
-             systemctl start google-hpc-firstrun.service
+             systemctl enable google-hpc-firstrun.service
              systemctl daemon-reload
             fi
-
-            echo "Rebooting!" | tee /etc/hello.txt
-            systemctl reboot
-
-          else
-            cleanup
-            echo "Hello Again" | tee /etc/hello-reboot.txt
           fi
         
 
@@ -218,7 +215,7 @@ deployment_groups:
       source_image: $(vars.input_image_name)
       # You can find size of source image by using following command
       # gcloud compute images describe-from-family <source_image_family> --project schedmd-slurm-public
-      disk_size: 200
+      disk_size: 20
       image_family: $(vars.output_image_family)
       image_name: $(vars.output_image_name)
       state_timeout: 20m
