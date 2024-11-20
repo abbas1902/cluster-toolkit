@@ -26,11 +26,10 @@ update_limits() {
 	echo "$line" ">>" $LIMITS_CONF
 }
 
-tune_limits() {
+configure_limits() {
 	if [[ -d "$(dirname "${LIMITSD_CONF}")" ]]; then
 		echo "98-google-hpc-image.conf already present"
 		# limits.d changes require rebooting
-		#need_reboot=1
 	else
 		# If limits.d is not supported
 		echo "Applying limits.conf"

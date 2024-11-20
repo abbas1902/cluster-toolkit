@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-tune_firewall() {
-	echo "Disabling firewall"
-	systemctl stop firewalld >/dev/null
-	systemctl disable firewalld >/dev/null
-	systemctl mask --now firewalld >/dev/null
+readonly SELINUX_CONFIG="/etc/selinux/config"
+configure_selinux() {
+	echo "Disabling SELinux"
+	sed -i 's/^SELINUX=.*$/SELINUX=disabled/g' $SELINUX_CONFIG
 }

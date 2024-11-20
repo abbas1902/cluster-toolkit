@@ -20,7 +20,7 @@
 blueprint_name: image-builder-v6
 
 vars:
-  project_id:  ## Set GCP Project ID Here ##
+  project_id: ## Set GCP Project ID Here ##
   deployment_name: image-builder-v6-001
   region: us-central1
   zone: us-central1-c
@@ -29,13 +29,13 @@ vars:
   input_image_project: rocky-linux-cloud
   input_image_name: rocky-linux-8-optimized-gcp-v20241009
   output_image_family: hpc-rocky-linux-8-toolkit
-  output_image_name: hpc-rocky-linux-8-toolkit-v20241118
+  output_image_name: hpc-rocky-linux-8-toolkit-v20241119
   
-  # Startup scripts (for image building with Packer)
-  scripts_dir: /home/user/cluster-toolkit/.image-building-test/scripts/
-  placed_files_dir: /home/user/cluster-toolkit/.image-building-test/placed_files/
-  services_dir: /home/user/cluster-toolkit/.image-building-test/services/
-  option_dir: /home/user/cluster-toolkit/.image-building-test/options/
+  # Startup scripts (for image building with Packer)  
+  scripts_dir: /usr/local/google/home/abbasmohamed/cluster-toolkit//hpc-image-builder/scripts/
+  placed_files_dir: /usr/local/google/home/abbasmohamed/cluster-toolkit//hpc-image-builder/placed_files/
+  services_dir: /usr/local/google/home/abbasmohamed/cluster-toolkit//hpc-image-builder/services/
+  option_dir: /usr/local/google/home/abbasmohamed/cluster-toolkit//hpc-image-builder/options/
   vm_etc_dir: /etc/hpc-image-builder
 # Documentation for each of the modules used below can be found at
 # https://github.com/GoogleCloudPlatform/hpc-toolkit/blob/main/modules/README.md
@@ -126,26 +126,30 @@ deployment_groups:
       ##################  
 
       - type: data
-        destination: $(vars.vm_etc_dir)/options/tune_firewall.sh
-        source: $(vars.option_dir)/tune_firewall.sh
+        destination: $(vars.vm_etc_dir)/options/configure_firewall.sh
+        source: $(vars.option_dir)/configure_firewall.sh
       - type: data
-        destination: $(vars.vm_etc_dir)/options/tune_selinux.sh
-        source: $(vars.option_dir)/tune_selinux.sh
+        destination: $(vars.vm_etc_dir)/options/configure_selinux.sh
+        source: $(vars.option_dir)/configure_selinux.sh
       - type: data
-        destination: $(vars.vm_etc_dir)/options/tune_tcpmem.sh
-        source: $(vars.option_dir)/tune_tcpmem.sh
+        destination: $(vars.vm_etc_dir)/options/configure_tcpmem.sh
+        source: $(vars.option_dir)/configure_tcpmem.sh
       - type: data
-        destination: $(vars.vm_etc_dir)/options/tune_ulimits.sh
-        source: $(vars.option_dir)/tune_ulimits.sh
+        destination: $(vars.vm_etc_dir)/options/configure_ulimits.sh
+        source: $(vars.option_dir)/configure_ulimits.sh
       - type: data
-        destination: $(vars.vm_etc_dir)/options/tune_hpc_throughput.sh
-        source: $(vars.option_dir)/tune_hpc_throughput.sh
+        destination: $(vars.vm_etc_dir)/options/configure_hpc_throughput.sh
+        source: $(vars.option_dir)/configure_hpc_throughput.sh
       - type: data
-        destination: $(vars.vm_etc_dir)/options/tune_smt.sh
-        source: $(vars.option_dir)/tune_smt.sh
+        destination: $(vars.vm_etc_dir)/options/configure_hpc_profile.sh
+        source: $(vars.option_dir)/configure_hpc_profile.sh
       - type: data
-        destination: $(vars.vm_etc_dir)/options/tune_interrupt_coalescing.sh
-        source: $(vars.option_dir)/tune_interrupt_coalescing.sh
+        destination: $(vars.vm_etc_dir)/options/configure_smt.sh
+        source: $(vars.option_dir)/configure_smt.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/options/configure_interrupt_coalescing.sh
+        source: $(vars.option_dir)/configure_interrupt_coalescing.sh
+      
       ########
       # Main #
       ########
@@ -161,36 +165,34 @@ deployment_groups:
           source $(vars.vm_etc_dir)/install_packages.sh
 
           ### TUNINGS ###          
-          #source $(vars.vm_etc_dir)/options/tune_interrupt_coalescing.sh
-          #source $(vars.vm_etc_dir)/options/tune_smt.sh
-          #source $(vars.vm_etc_dir)/options/tune_tcpmem.sh
-          source $(vars.vm_etc_dir)/options/tune_firewall.sh
-          source $(vars.vm_etc_dir)/options/tune_selinux.sh
-          source $(vars.vm_etc_dir)/options/tune_ulimits.sh
-          source $(vars.vm_etc_dir)/options/tune_hpc_throughput.sh
+          source $(vars.vm_etc_dir)/options/configure_firewall.sh
+          source $(vars.vm_etc_dir)/options/configure_selinux.sh
+          source $(vars.vm_etc_dir)/options/configure_ulimits.sh
+          source $(vars.vm_etc_dir)/options/configure_hpc_profile.sh
+          source $(vars.vm_etc_dir)/options/configure_interrupt_coalescing.sh
 
           setup_instance
+          
           if [[ ! -f ~/.reboot ]]; then
             touch ~/.reboot
             sync
 
-            #Install HPC packages/applications
+            #Install software
             install_packages
+
+            #Set configuration options
+            configure_limits
+            configure_hpcprofile
+            configure_firewall
+            configure_selinux
+            configure_limits
+            configure_interrupt_coalescing
 
             systemctl reboot
 
           else            
-            #Add tunings
-            #tune_tcpmem
-            #tune_ht
-            #tune_interrupt_coalescing
-            tune_limits
-            tune_hpcprofile
-            tune_firewall
-            tune_selinux
-            
             cleanup
-
+            
             #Enable SystemD services
             if [ -d /run/systemd/system ]; then
              systemctl enable --now google-hpc-multiqueue.service

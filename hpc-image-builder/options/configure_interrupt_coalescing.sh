@@ -13,18 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-HPC_PROFILE="google-hpc-compute"
-HPC_PROFILE_PATH="/usr/lib/tuned/google-hpc-compute/tuned.conf"
+readonly NIC="eth0"
 
-get_active_profile() {
-	ACTIVE_PROFILE=$(tuned-adm active | awk {'print $4'})
-	echo "Current tuned profile ${ACTIVE_PROFILE}"
-}
-
-tune_hpcprofile() {
-	echo "Installing ${HPC_PROFILE} profile"
-	mkdir -p "$(dirname "${HPC_PROFILE_PATH}")"
-	tuned-adm profile ${HPC_PROFILE}
-	get_active_profile
-	#need_reboot=1
+configure_interrupt_coalescing() {
+	echo "Modifying Interrupt Coalesce settings"
+	DRIVER_NAME=$(ethtool -i ${NIC} | sed -n "s/^driver:\s*//p")
+	if [[ $DRIVER_NAME == 'gve' ]]; then
+		echo "Setting values for rx-usecs and tx-usecs to 0"
+		run ethtool -C ${NIC} rx-usecs 0 &>/dev/null
+		run ethtool -C ${NIC} tx-usecs 0 &>/dev/null
+	else
+		echo "gVNIC driver not enabled"
+	fi
 }

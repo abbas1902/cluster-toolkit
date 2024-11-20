@@ -13,9 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-readonly SELINUX_CONFIG="/etc/selinux/config"
-tune_selinux() {
-	echo "Disabling SELinux"
-	sed -i 's/^SELINUX=.*$/SELINUX=disabled/g' $SELINUX_CONFIG
-	#need_reboot=1
+HPC_PROFILE="google-hpc-compute"
+HPC_PROFILE_PATH="/usr/lib/tuned/google-hpc-compute/tuned.conf"
+
+get_active_profile() {
+	ACTIVE_PROFILE=$(tuned-adm active | awk {'print $4'})
+	echo "Current tuned profile ${ACTIVE_PROFILE}"
+}
+
+configure_hpcprofile() {
+	echo "Installing ${HPC_PROFILE} profile"
+	mkdir -p "$(dirname "${HPC_PROFILE_PATH}")"
+	tuned-adm profile ${HPC_PROFILE}
+	get_active_profile
 }

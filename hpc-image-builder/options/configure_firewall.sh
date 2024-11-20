@@ -13,16 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-readonly NIC="eth0"
-
-tune_interrupt_coalescing() {
-	echo "Modifying Interrupt Coalesce settings"
-	DRIVER_NAME=$(ethtool -i ${NIC} | sed -n "s/^driver:\s*//p")
-	if [[ DRIVER_NAME == 'gve' ]]; then
-		echo "Setting values for rx-usecs and tx-usecs to 0"
-		run ethtool -C ${NIC} rx-usecs 0 &>/dev/null
-		run ethtool -C ${NIC} tx-usecs 0 &>/dev/null
-	else
-		echo "gVNIC driver not enabled"
-	fi
+configure_firewall() {
+	echo "Disabling firewall"
+	systemctl stop firewalld >/dev/null
+	systemctl disable firewalld >/dev/null
+	systemctl mask --now firewalld >/dev/null
 }

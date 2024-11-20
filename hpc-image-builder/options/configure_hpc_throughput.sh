@@ -21,10 +21,9 @@ get_active_profile() {
 	echo "Current tuned profile ${ACTIVE_PROFILE}"
 }
 
-tune_hpcprofile() {
+configure_hpcprofile() {
 	echo "Installing ${HPC_PROFILE} profile"
 	mkdir -p "$(dirname "${HPC_PROFILE_PATH}")"
 	tuned-adm profile ${HPC_PROFILE}
 	get_active_profile
-	#need_reboot=1
 }

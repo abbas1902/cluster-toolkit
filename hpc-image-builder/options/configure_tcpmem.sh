@@ -36,7 +36,7 @@ update_sysctl() {
 	fi
 }
 
-tune_tcpmem() {
+configure_tcpmem() {
 	if [[ ${ACTIVE_PROFILE} == ${HPC_PROFILE} ]]; then
 		echo "Skip tcpmem tuning: applied in ${HPC_PROFILE} tuned profile"
 	else

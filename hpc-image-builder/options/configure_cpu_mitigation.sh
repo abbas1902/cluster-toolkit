@@ -15,14 +15,6 @@
 
 GRUB_DEFAULT="/etc/default/grub"
 
-disable_ht_online() {
-	if [[ -f /sys/devices/system/cpu/cpu0/topology/thread_siblings_list ]]; then
-		for vcpu in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | awk -F '[^0-9]' '{ print $2 }' | uniq); do
-			echo 0 >/sys/devices/system/cpu/cpu${vcpu}/online
-		done
-	fi
-}
-
 update_grub_default() {
 	local key=$1
 	shift
@@ -32,24 +24,24 @@ update_grub_default() {
 		return 1
 	else
 		echo "Adding boot parameter: $key"
-		local regex="'s/GRUB_CMDLINE_LINUX=\"[^\"]*/& '$key'/'"
-		sed -i "$regex" $GRUB_DEFAULT
+		local regex='s/GRUB_CMDLINE_LINUX=\"[^\"]*/& '$key'/'
+		sed -i $regex $GRUB_DEFAULT
 	fi
 }
 
-tune_ht() {
-	echo "Disabling hyperthreading"
+configure_mitigations() {
+	echo "Disabling CPU mitigations"
 	local grub_updated=0
 	local new_elkernel=1
 	if [[ "$new_elkernel" -eq 1 ]]; then
-		update_grub_default nosmt && grub_updated=1
+		update_grub_default mitigations=off && grub_updated=1
 	else
-		update_grub_default nosmt && grub_updated=1
-		update_grub_default nr_cpus="$nr_cpus" && grub_updated=1
+		update_grub_default spectre_v2=off
+		update_grub_default nopti
+		update_grub_default spec_store_bypass_disable=off
+		grub_updated=1
 	fi
 	if [[ "$grub_updated" -eq 1 ]]; then
 		update_grub_config
 	fi
-	# Hot-unplug HT CPU thread siblings
-	disable_ht_online
 }
