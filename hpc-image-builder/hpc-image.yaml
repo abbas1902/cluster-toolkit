@@ -27,9 +27,9 @@ vars:
 
   # Image info
   input_image_project: rocky-linux-cloud
-  input_image_name: rocky-linux-8-optimized-gcp-v20241009
+  input_image_name: rocky-linux-8-optimized-gcp-v20241112
   output_image_family: hpc-rocky-linux-8-toolkit
-  output_image_name: hpc-rocky-linux-8-toolkit-v20241119
+  output_image_name: hpc-rocky-linux-8-toolkit-v20241126
   
   # Startup scripts (for image building with Packer)  
   scripts_dir: /usr/local/google/home/abbasmohamed/cluster-toolkit//hpc-image-builder/scripts/
@@ -75,7 +75,7 @@ deployment_groups:
       - type: data
         destination: /etc/image_name_base
         content: $(vars.input_image_name)
-      
+
       - type: data
         destination: /etc/image_name_hpc
         content: $(vars.output_image_name)
@@ -85,8 +85,8 @@ deployment_groups:
         source: $(vars.placed_files_dir)/98-google-hpc-image.conf
       
       - type: data
-        destination: /etc/NetworkManager/dispatcher.d/30-disable-gvnic-coalesce
-        source: $(vars.placed_files_dir)/30-disable-gvnic-coalesce
+        destination: /etc/NetworkManager/dispatcher.d/30-disable-gvnic-coalesce.sh
+        source: $(vars.placed_files_dir)/30-disable-gvnic-coalesce.sh
 
       - type: data
         destination: /usr/lib/tuned/google-hpc-compute/tuned.conf
@@ -159,6 +159,11 @@ deployment_groups:
         content: |         
           #!/bin/bash
           set -eEx
+          
+          ### SET SCRIPTS TO BE EXECUTABLE ###
+          chmod a+x /usr/bin/google_hpc_firstrun
+          chmod a+x /usr/bin/google_hpc_multiqueue
+          chmod a+x /etc/NetworkManager/dispatcher.d/30-disable-gvnic-coalesce.sh
 
           #TODO add the rest
           source $(vars.vm_etc_dir)/utils.sh
@@ -168,8 +173,7 @@ deployment_groups:
           source $(vars.vm_etc_dir)/options/configure_firewall.sh
           source $(vars.vm_etc_dir)/options/configure_selinux.sh
           source $(vars.vm_etc_dir)/options/configure_ulimits.sh
-          source $(vars.vm_etc_dir)/options/configure_hpc_profile.sh
-          source $(vars.vm_etc_dir)/options/configure_interrupt_coalescing.sh
+          source $(vars.vm_etc_dir)/options/configure_hpc_throughput.sh
 
           setup_instance
           
@@ -185,8 +189,6 @@ deployment_groups:
             configure_hpcprofile
             configure_firewall
             configure_selinux
-            configure_limits
-            configure_interrupt_coalescing
 
             systemctl reboot
 
