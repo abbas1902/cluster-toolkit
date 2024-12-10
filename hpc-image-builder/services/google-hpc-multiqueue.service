@@ -1,0 +1,13 @@
+[Unit]
+Description=Google HPC Multiqueue Script
+Wants=network-online.target rsyslog.service
+After=network-online.target rsyslog.service google-guest-agent.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /usr/bin/google-hpc-multiqueue
+KillMode=process
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target

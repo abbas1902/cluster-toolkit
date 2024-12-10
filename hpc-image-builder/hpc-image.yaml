@@ -1,0 +1,226 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+
+# See instructions at
+# https://github.com/GoogleCloudPlatform/hpc-toolkit/tree/main/examples#image-builderyaml-
+
+blueprint_name: image-builder-v6
+
+vars:
+  project_id: ## Set GCP Project ID Here ##
+  deployment_name: image-builder-v6-001
+  region: us-central1
+  zone: us-central1-c
+
+  # Image info
+  input_image_project: rocky-linux-cloud
+  input_image_name: rocky-linux-8-optimized-gcp-v20241210
+  output_image_family: hpc-rocky-linux-8-toolkit
+  output_image_name: hpc-rocky-linux-8-toolkit-v20250113
+
+  # Startup scripts (for image building with Packer)
+  hpc_image_builder_dir: $(ghpc_stage(""))
+  vm_etc_dir: /etc/hpc-image-builder
+# Documentation for each of the modules used below can be found at
+# https://github.com/GoogleCloudPlatform/hpc-toolkit/blob/main/modules/README.md
+
+deployment_groups:
+- group: primary
+  modules:
+  - id: network
+    source: modules/network/vpc
+
+  - id: image_build_script
+    source: modules/scripts/startup-script
+    settings:
+      runners:
+      #################
+      # SystemD Units #
+      #################
+      - type: data
+        destination: /lib/systemd/system/google-hpc-multiqueue.service
+        source: $(vars.hpc_image_builder_dir)/services/google-hpc-multiqueue.service
+
+      - type: data
+        destination: /usr/bin/google-hpc-multiqueue
+        source: $(vars.hpc_image_builder_dir)/services/google-hpc-multiqueue.service
+
+      - type: data
+        destination: /lib/systemd/system/google-hpc-firstrun.service
+        source: $(vars.hpc_image_builder_dir)/services/google-hpc-firstrun.service
+
+      - type: data
+        destination: /usr/bin/google-hpc-firstrun
+        source: $(vars.hpc_image_builder_dir)/services/google-hpc-firstrun.sh
+
+      ################
+      # Placed files #
+      ################
+      - type: data
+        destination: /etc/image_name_base
+        content: $(vars.input_image_name)
+
+      - type: data
+        destination: /etc/image_name_hpc
+        content: $(vars.output_image_name)
+
+      - type: data
+        destination: /etc/security/limits.d/98-google-hpc-image.conf
+        source: $(vars.hpc_image_builder_dir)/placed_files/98-google-hpc-image.conf
+
+      - type: data
+        destination: /etc/NetworkManager/dispatcher.d/30-disable-gvnic-coalesce.sh
+        source: $(vars.hpc_image_builder_dir)/placed_files/30-disable-gvnic-coalesce.sh
+
+      - type: data
+        destination: /usr/lib/tuned/google-hpc-compute/google-hpc-tuned.conf
+        source: $(vars.hpc_image_builder_dir)/placed_files/google-hpc-tuned.conf
+
+      - type: data
+        destination: /usr/lib/tuned/google-hpc-compute-throughput/tuned.conf
+        source: $(vars.hpc_image_builder_dir)/placed_files/google-hpc-throughput-tuned.conf
+
+      ###################
+      # Bootstrap utils #
+      ###################
+
+      - type: data
+        destination: $(vars.vm_etc_dir)/utils.sh
+        source: $(vars.hpc_image_builder_dir)/scripts/utils.sh
+
+      ########################
+      # Installation Scripts #
+      ########################
+
+      - type: data
+        destination: $(vars.vm_etc_dir)/install_packages.sh
+        source: $(vars.hpc_image_builder_dir)/scripts/install_packages.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/google_install_intelmpi.sh
+        source: $(vars.hpc_image_builder_dir)/scripts/google_install_intelmpi.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/google_disable_automatic_updates.sh
+        source: $(vars.hpc_image_builder_dir)/scripts/google_disable_automatic_updates.sh
+
+      ##################
+      # Tuning Options #
+      ##################
+
+      - type: data
+        destination: $(vars.vm_etc_dir)/options/configure_firewall.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_firewall.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/options/configure_selinux.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_selinux.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/options/configure_tcpmem.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_tcpmem.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/options/configure_ulimits.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_ulimits.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/options/configure_hpc_throughput.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_hpc_throughput.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/options/configure_hpc_profile.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_hpc_profile.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/options/configure_smt.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_smt.sh
+      - type: data
+        destination: $(vars.vm_etc_dir)/options/configure_interrupt_coalescing.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_interrupt_coalescing.sh
+
+      ########
+      # Main #
+      ########
+
+      - type: shell
+        destination: $(vars.vm_etc_dir)/main.sh
+        content: |
+          #!/bin/bash
+          set -eEx
+
+          mv /usr/lib/tuned/google-hpc-compute/google-hpc-tuned.conf /usr/lib/tuned/google-hpc-compute/tuned.conf
+
+          ### SET SCRIPTS TO BE EXECUTABLE ###
+          chmod a+x /etc/NetworkManager/dispatcher.d/30-disable-gvnic-coalesce.sh
+
+          #TODO add the rest
+          source $(vars.vm_etc_dir)/utils.sh
+          source $(vars.vm_etc_dir)/install_packages.sh
+
+          ### TUNINGS ###
+          source $(vars.vm_etc_dir)/options/configure_firewall.sh
+          source $(vars.vm_etc_dir)/options/configure_selinux.sh
+          source $(vars.vm_etc_dir)/options/configure_ulimits.sh
+          source $(vars.vm_etc_dir)/options/configure_hpc_throughput.sh
+
+          setup_instance
+
+          if [[ ! -f ~/.reboot ]]; then
+            touch ~/.reboot
+            sync
+
+            #Install software
+            install_packages
+
+            #Set configuration options
+            configure_limits
+            configure_firewall
+            configure_selinux
+
+            systemctl reboot
+
+          else
+            # Enable tuned profile
+            configure_hpcprofile_throughput
+
+            # Enable multiqueue script
+            systemctl enable --now google-hpc-multiqueue.service
+
+            # Enable hpc image firstrun script
+            systemctl enable google-hpc-firstrun.service
+
+            if [ -d /run/systemd/system ]; then
+              systemctl daemon-reload
+            fi
+
+            cleanup
+          fi
+
+
+- group: packer
+  modules:
+  - id: custom-image
+    source: modules/packer/custom-image
+    kind: packer
+    use:
+    - network
+    - image_build_script
+    settings:
+      source_image_project_id: [$(vars.input_image_project)]
+      # see latest in https://github.com/GoogleCloudPlatform/slurm-gcp/blob/master/docs/images.md#published-image-family
+      source_image: $(vars.input_image_name)
+      # You can find size of source image by using following command
+      # gcloud compute images describe-from-family <source_image_family> --project schedmd-slurm-public
+      disk_size: 20
+      image_family: $(vars.output_image_family)
+      image_name: $(vars.output_image_name)
+      state_timeout: 20m
+      metadata:
+        image-name: $(vars.output_image_name)
+        base-image-name: $(vars.input_image_name)

@@ -1,0 +1,117 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+
+# See instructions at
+# https://github.com/GoogleCloudPlatform/hpc-toolkit/tree/main/examples#image-builderyaml-
+
+blueprint_name: image-builder-v6
+
+vars:
+  project_id: ## Set GCP Project ID Here ##
+  deployment_name: image-builder-v6-001
+  region: us-central1
+  zone: us-central1-c
+  output_family: hpc-custom-image
+
+# Documentation for each of the modules used below can be found at
+# https://github.com/GoogleCloudPlatform/hpc-toolkit/blob/main/modules/README.md
+
+deployment_groups:
+- group: primary
+  modules:
+  - id: network
+    source: modules/network/vpc
+
+  - id: image_build_script
+    source: modules/scripts/startup-script
+    settings:
+      runners:
+      - type: shell
+        destination: generate_hello.sh
+        content: |
+          #!/bin/sh
+          readonly SYSTEMD_UNIT_ROOT=/lib/systemd/system
+          readonly WORKING_DIR=/root/mpi-tuning
+
+          set -eEx
+          trap notify_fail ERR
+
+          function notify_fail() {
+            trap "Image build failure: failed to setup HPC VM image" EXIT
+          }
+          function clear_shadow_locks() {
+            # clears out stale shadow-utils locks in /etc/
+            filenames=('group' 'gshadow'  'passwd'  'shadow' 'subgid' 'subuid')
+            for f in "${filenames[@]}"; do
+              if [[ -f "/etc/${f}.lock" ]]; then
+                echo "find /etc/${f}.lock and rm it"
+                rm "/etc/${f}.lock"
+              fi
+            done
+          }
+          function setup_instance() {
+            echo "Setup instance."
+
+            # disable google-guest-agent service
+            # google-guest-agent will insert user accounts and keys
+            # systemctl stop google-guest-agent.service
+
+            # clean up the lock files
+            clear_shadow_locks
+
+            echo "Create working directory."
+            mkdir -p ${WORKING_DIR}
+          }
+          function create_image_name_files() {
+            image_version="$(get_instance_metadata_value "attributes/image-name")"
+            echo "Creating HPC image version file '/etc/image_name_hpc'."
+            echo "${image_version}" > "/etc/image_name_hpc"
+
+            base_image_version="$(get_instance_metadata_value "image")"
+            echo "Creating base image version file '/etc/image_name_base'."
+            echo "${base_image_version}" > "/etc/image_name_base"
+          }
+
+          setup_instance
+          create_image_name_files
+          if [[ ! -f ~/.reboot ]]; then
+            touch ~/.reboot
+            sync
+            sleep 5
+            systemctl reboot
+            echo "Reboot!" | tee ~/hello.txt
+          else
+            echo "Hello Again" | tee -a ~/hello.txt
+          fi
+
+
+- group: packer
+  modules:
+  - id: custom-image
+    source: modules/packer/custom-image
+    kind: packer
+    use:
+    - network
+    - image_build_script
+    settings:
+      source_image_project_id: [rocky-linux-cloud]
+      # see latest in https://github.com/GoogleCloudPlatform/slurm-gcp/blob/master/docs/images.md#published-image-family
+      source_image_family: rocky-linux-8-optimized-gcp
+      # You can find size of source image by using following command
+      # gcloud compute images describe-from-family <source_image_family> --project schedmd-slurm-public
+      disk_size: 200
+      image_family: $(vars.output_family)
+      state_timeout: 20m
