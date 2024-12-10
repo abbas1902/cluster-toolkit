@@ -22,10 +22,6 @@
 
 set -x -e -o pipefail
 
-source /etc/hpc-image-builder/google_install_intelmpi.sh
-source /etc/hpc-image-builder/google_disable_automatic_updates.sh
-
-
 URL="http://metadata.google.internal/computeMetadata/v1/instance/attributes"
 MAXTIME=1
 FIRSTRUN="/.google_hpc_firstrun"
@@ -59,15 +55,17 @@ function get_attributes() {
 }
 
 function disable_automatic_updates() {
+	source /etc/hpc-image-builder/google_disable_automatic_updates.sh
 	if [[ ${DISABLE_AUTOMATIC_UPDATES} == "TRUE" ]]; then
 		echo "Disable automatic updates: google_disable_automatic_updates ${DISABLE_AUTOMATIC_UPDATES}"
-		google_disable_automatic_updates ${DISABLE_AUTOMATIC_UPDATES}
+		google_disable_automatic_updates
 	else
 		echo "Automatic updates were not disabled through metadata."
 	fi
 }
 
 function install_intelmpi() {
+	source /etc/hpc-image-builder/google_install_intelmpi.sh
 	if [[ ${INSTALL_INTELMPI} ]]; then
 		echo "Install MPI environment: google_install_intelmpi ${INSTALL_INTELMPI}"
 		google_install_intelmpi ${INSTALL_INTELMPI}

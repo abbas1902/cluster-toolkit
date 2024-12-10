@@ -20,8 +20,8 @@
 blueprint_name: image-builder-v6
 
 vars:
-  project_id: ## Set GCP Project ID Here ##
-  deployment_name: image-builder-v6-001
+  project_id: ns-playground-a ## Set GCP Project ID Here ##
+  deployment_name: image-builder-v6-003
   region: us-central1
   zone: us-central1-c
 
@@ -29,13 +29,10 @@ vars:
   input_image_project: rocky-linux-cloud
   input_image_name: rocky-linux-8-optimized-gcp-v20241112
   output_image_family: hpc-rocky-linux-8-toolkit
-  output_image_name: hpc-rocky-linux-8-toolkit-v20241126
+  output_image_name: hpc-rocky-linux-8-toolkit-v20241209
   
-  # Startup scripts (for image building with Packer)  
-  scripts_dir: /usr/local/google/home/abbasmohamed/cluster-toolkit//hpc-image-builder/scripts/
-  placed_files_dir: /usr/local/google/home/abbasmohamed/cluster-toolkit//hpc-image-builder/placed_files/
-  services_dir: /usr/local/google/home/abbasmohamed/cluster-toolkit//hpc-image-builder/services/
-  option_dir: /usr/local/google/home/abbasmohamed/cluster-toolkit//hpc-image-builder/options/
+  # Startup scripts (for image building with Packer) 
+  hpc_image_builder_dir: $(ghpc_stage(""))
   vm_etc_dir: /etc/hpc-image-builder
 # Documentation for each of the modules used below can be found at
 # https://github.com/GoogleCloudPlatform/hpc-toolkit/blob/main/modules/README.md
@@ -55,19 +52,19 @@ deployment_groups:
       #################
       - type: data
         destination: /lib/systemd/system/google-hpc-multiqueue.service
-        source: $(vars.services_dir)/google-hpc-multiqueue.service
+        source: $(vars.hpc_image_builder_dir)/services/google-hpc-multiqueue.service
       
       - type: data
-        destination: /usr/bin/google_hpc_multiqueue
-        source: $(vars.services_dir)/google-hpc-multiqueue.sh
+        destination: /usr/bin/google-hpc-multiqueue
+        source: $(vars.hpc_image_builder_dir)/services/google-hpc-multiqueue.service
 
       - type: data
         destination: /lib/systemd/system/google-hpc-firstrun.service
-        source: $(vars.services_dir)/google-hpc-firstrun.service
+        source: $(vars.hpc_image_builder_dir)/services/google-hpc-firstrun.service
       
       - type: data
-        destination: /usr/bin/google_hpc_firstrun
-        source: $(vars.services_dir)/google-hpc-firstrun.sh
+        destination: /usr/bin/google-hpc-firstrun
+        source: $(vars.hpc_image_builder_dir)/services/google-hpc-firstrun.sh
 
       ################
       # Placed files #
@@ -82,19 +79,19 @@ deployment_groups:
 
       - type: data
         destination: /etc/security/limits.d/98-google-hpc-image.conf
-        source: $(vars.placed_files_dir)/98-google-hpc-image.conf
+        source: $(vars.hpc_image_builder_dir)/placed_files/98-google-hpc-image.conf
       
       - type: data
         destination: /etc/NetworkManager/dispatcher.d/30-disable-gvnic-coalesce.sh
-        source: $(vars.placed_files_dir)/30-disable-gvnic-coalesce.sh
+        source: $(vars.hpc_image_builder_dir)/placed_files/30-disable-gvnic-coalesce.sh
 
       - type: data
         destination: /usr/lib/tuned/google-hpc-compute/tuned.conf
-        source: $(vars.placed_files_dir)/google-hpc-tuned.conf
+        source: $(vars.hpc_image_builder_dir)/placed_files/google-hpc-tuned.conf
 
       - type: data
         destination: /usr/lib/tuned/google-hpc-compute-throughput/tuned.conf
-        source: $(vars.placed_files_dir)/google-hpc-throughput-tuned.conf
+        source: $(vars.hpc_image_builder_dir)/placed_files/google-hpc-throughput-tuned.conf
 
       ###################
       # Bootstrap utils #
@@ -102,7 +99,7 @@ deployment_groups:
       
       - type: data
         destination: $(vars.vm_etc_dir)/utils.sh
-        source: $(vars.scripts_dir)/utils.sh
+        source: $(vars.hpc_image_builder_dir)/scripts/utils.sh
 
       ########################
       # Installation Scripts #
@@ -110,16 +107,16 @@ deployment_groups:
   
       - type: data
         destination: $(vars.vm_etc_dir)/install_packages.sh
-        source: $(vars.scripts_dir)/install_packages.sh
+        source: $(vars.hpc_image_builder_dir)/scripts/install_packages.sh
       - type: data
         destination: $(vars.vm_etc_dir)/google_mpi_tuning.sh
-        source: $(vars.scripts_dir)/google_mpi_tuning.sh
+        source: $(vars.hpc_image_builder_dir)/scripts/google_mpi_tuning.sh
       - type: data
         destination: $(vars.vm_etc_dir)/google_install_intelmpi.sh
-        source: $(vars.scripts_dir)/google_install_intelmpi.sh
+        source: $(vars.hpc_image_builder_dir)/scripts/google_install_intelmpi.sh
       - type: data
         destination: $(vars.vm_etc_dir)/google_disable_automatic_updates.sh
-        source: $(vars.scripts_dir)/google_disable_automatic_updates.sh
+        source: $(vars.hpc_image_builder_dir)/scripts/google_disable_automatic_updates.sh
      
       ##################
       # Tuning Options #
@@ -127,28 +124,28 @@ deployment_groups:
 
       - type: data
         destination: $(vars.vm_etc_dir)/options/configure_firewall.sh
-        source: $(vars.option_dir)/configure_firewall.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_firewall.sh
       - type: data
         destination: $(vars.vm_etc_dir)/options/configure_selinux.sh
-        source: $(vars.option_dir)/configure_selinux.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_selinux.sh
       - type: data
         destination: $(vars.vm_etc_dir)/options/configure_tcpmem.sh
-        source: $(vars.option_dir)/configure_tcpmem.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_tcpmem.sh
       - type: data
         destination: $(vars.vm_etc_dir)/options/configure_ulimits.sh
-        source: $(vars.option_dir)/configure_ulimits.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_ulimits.sh
       - type: data
         destination: $(vars.vm_etc_dir)/options/configure_hpc_throughput.sh
-        source: $(vars.option_dir)/configure_hpc_throughput.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_hpc_throughput.sh
       - type: data
         destination: $(vars.vm_etc_dir)/options/configure_hpc_profile.sh
-        source: $(vars.option_dir)/configure_hpc_profile.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_hpc_profile.sh
       - type: data
         destination: $(vars.vm_etc_dir)/options/configure_smt.sh
-        source: $(vars.option_dir)/configure_smt.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_smt.sh
       - type: data
         destination: $(vars.vm_etc_dir)/options/configure_interrupt_coalescing.sh
-        source: $(vars.option_dir)/configure_interrupt_coalescing.sh
+        source: $(vars.hpc_image_builder_dir)/options/configure_interrupt_coalescing.sh
       
       ########
       # Main #
@@ -161,8 +158,6 @@ deployment_groups:
           set -eEx
           
           ### SET SCRIPTS TO BE EXECUTABLE ###
-          chmod a+x /usr/bin/google_hpc_firstrun
-          chmod a+x /usr/bin/google_hpc_multiqueue
           chmod a+x /etc/NetworkManager/dispatcher.d/30-disable-gvnic-coalesce.sh
 
           #TODO add the rest
@@ -186,21 +181,26 @@ deployment_groups:
 
             #Set configuration options
             configure_limits
-            configure_hpcprofile
             configure_firewall
             configure_selinux
 
             systemctl reboot
 
           else            
-            cleanup
+            # Enable tuned profile
+            configure_hpcprofile_throughput
             
-            #Enable SystemD services
+            # Enable multiqueue script
+            systemctl enable --now google-hpc-multiqueue.service
+            
+            # Enable hpc image firstrun script
+            systemctl enable google-hpc-firstrun.service
+            
             if [ -d /run/systemd/system ]; then
-             systemctl enable --now google-hpc-multiqueue.service
-             systemctl enable google-hpc-firstrun.service
-             systemctl daemon-reload
+              systemctl daemon-reload
             fi
+            
+            cleanup
           fi
         
 

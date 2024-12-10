@@ -22,27 +22,29 @@ set -x -e -o pipefail
 #   Unfortunately, the OSConfig Agent runs `yum check-update` whether or not
 #   the 'tasks' feature is enabled.
 #   More info: https://cloud.google.com/compute/docs/os-patch-management
-systemctl disable google-osconfig-agent.service
-systemctl stop google-osconfig-agent.service
+function google_disable_automatic_updates() {
+    systemctl disable google-osconfig-agent.service
+    systemctl stop google-osconfig-agent.service
 
-systemctl disable dnf-automatic.timer
-systemctl stop dnf-automatic.timer
-systemctl disable dnf-automatic.service
-systemctl stop dnf-automatic.service
+    systemctl disable dnf-automatic.timer
+    systemctl stop dnf-automatic.timer
+    systemctl disable dnf-automatic.service
+    systemctl stop dnf-automatic.service
 
-systemctl disable dnf-makecache.timer
-systemctl stop dnf-makecache.timer
-systemctl disable dnf-makecache.service
-systemctl stop dnf-makecache.service
+    systemctl disable dnf-makecache.timer
+    systemctl stop dnf-makecache.timer
+    systemctl disable dnf-makecache.service
+    systemctl stop dnf-makecache.service
 
-systemctl disable dnf-automatic-download.timer
-systemctl stop dnf-automatic-download.timer
-systemctl disable dnf-automatic-download.service
-systemctl stop dnf-automatic-download.service
+    systemctl disable dnf-automatic-download.timer
+    systemctl stop dnf-automatic-download.timer
+    systemctl disable dnf-automatic-download.service
+    systemctl stop dnf-automatic-download.service
 
-systemctl disable dnf-automatic-install.timer
-systemctl stop dnf-automatic-install.timer
-systemctl disable dnf-automatic-install.service
-systemctl stop dnf-automatic-install.service
+    systemctl disable dnf-automatic-install.timer
+    systemctl stop dnf-automatic-install.timer
+    systemctl disable dnf-automatic-install.service
+    systemctl stop dnf-automatic-install.service
 
-rm -f /var/lib/systemd/timers/stamp-dnf-automatic.timer
+    rm -f /var/lib/systemd/timers/stamp-dnf-automatic.timer
+}
