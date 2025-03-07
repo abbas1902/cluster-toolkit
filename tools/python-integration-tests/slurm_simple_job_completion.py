@@ -15,6 +15,7 @@
 from ssh import SSHManager
 from deployment import Deployment
 from test import SlurmTest
+import argparse
 import unittest
 import time
 import json
@@ -22,12 +23,17 @@ import json
 class SlurmSimpleJobCompletionTest(SlurmTest):
     # Class to test simple slurm job completion
     def __init__(self, deployment):
-        super().__init__(Deployment("tools/python-integration-tests/blueprints/slurm-simple.yaml"))
+        parser = argparse.ArgumentParser("blueprint_parser")
+        parser.add_argument("blueprint", help="Relative path of the blueprint you'd like this to run", type=str)
+        parser.add_argument("jobs", help="Number of jobs you'd like this test to run", type=int)
+        args = parser.parse_args()
+
+        super().__init__(Deployment(args.blueprint))
         self.job_list = {}
 
     def runTest(self):
         # Submits 5 jobs and checks if they are successful.
-        for i in range(5):
+        for i in range(args.jobs):
             self.submit_job('sbatch -N 1 --wrap "sleep 20"')
         self.monitor_squeue()
 
