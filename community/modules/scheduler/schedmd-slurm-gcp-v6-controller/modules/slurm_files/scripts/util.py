@@ -1715,6 +1715,18 @@ class Lookup:
         """See https://cloud.google.com/compute/docs/reference/rest/v1/reservations"""
         return self.compute.reservations().get(
             project=project, zone=zone, reservation=name).execute()
+    
+    def _get_reservation_block(self, project: str, zone: str, name:str) -> Any:
+        """See https://cloud.google.com/compute/docs/reference/rest/v1/reservationBlocks"""
+        return self.compute.reservationBlocks().get(project=project, zone=zone, reservation=name).execute
+
+    @lru_cache()
+    def get_reservation_blocks(self, project: str, zone:str, name:str) -> Any:
+        res_blocks=[]
+        for p in self.cfg.partitions.values():
+            for ns in p.partition_nodeset:
+                if "a4x" in ns.machine_type and ns.reservation_name:
+                    _get_reservation_block
 
     @lru_cache()
     def get_mig(self, project: str, zone: str, self_link:str) -> Any:
