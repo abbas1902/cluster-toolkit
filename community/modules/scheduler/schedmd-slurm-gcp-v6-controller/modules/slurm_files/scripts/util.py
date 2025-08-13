@@ -1356,6 +1356,12 @@ class Dumper(yaml.SafeDumper):
     def represent_path(dumper, path):
         return dumper.represent_scalar("tag:yaml.org,2002:str", str(path))
 
+@dataclass(frozen=True)
+class ReservationBlock:
+    project: str
+    zone: str
+    name: str
+    subblock_count: int
 
 @dataclass(frozen=True)
 class ReservationDetails:
@@ -1715,6 +1721,45 @@ class Lookup:
         """See https://cloud.google.com/compute/docs/reference/rest/v1/reservations"""
         return self.compute.reservations().get(
             project=project, zone=zone, reservation=name).execute()
+    
+    def _get_reservation_block(self, project: str, zone: str, name:str) -> Any:
+        """See https://cloud.google.com/compute/docs/reference/rest/v1/reservationBlocks"""
+        return self.compute.reservationBlocks().get(project=project, zone=zone, reservation=name).execute
+
+    @lru_cache()
+    def get_reservation_blocks(self, project) -> Any:
+        res_blocks=[]
+        for p in self.cfg.partitions.values():
+            for ns in p.partition_nodeset:
+                if "a4x" in ns.machine_type and ns.reservation_name:
+                    zones = ns.zone_policy_allow
+                    zone = zones[0]
+                    if (rb := _get_reservation_block(project, zone, ns.reservation_name)):
+                        chunk = ns.static_dynamic_sizes // 18
+                        res = ReservationBlock(project=project, zone=zone, name=rb.get("name"), subblock_count=rb.get("reservationSubBlockCount"))
+                        if res not in res_blocks:
+                            res_blocks.append(res)
+        return res_blocks
+                        
+    
+    def generate_block_topology(self, partitions: List[str]):
+        if len(partitions) < 1 or not (reservation_blocks := self.get_reservation_blocks(self.project)):
+            return
+        block_topology = defaultdict(list)
+        for i in range(len(reservation_blocks)):
+            block_topology[sbrg[i].name].add(f"{sbrg[i].name}-{i}")
+            
+            for j in range(sbrg[i].subblock_count,32):
+                block_topology[sbrg.name].add(f"{sbrg.nane}-{j}-phantom")
+        if block_topology:
+            block_to_topology_yaml(block_topology)
+
+    def block_to_topology_yaml(self, block_topology: dict[str,str]):
+        with open(f"{self.etc_dir / 'cloud_topology.yaml'}", "r") as f:
+            file = yaml.safe_load(f)
+        for topology in file:
+            if topology.get("topology") == "block-topo":
+
 
     @lru_cache()
     def get_mig(self, project: str, zone: str, self_link:str) -> Any:
